@@ -1,44 +1,40 @@
 ﻿using System;
-using Microsoft.Azure.EventHubs;
-using Microsoft.Azure.EventHubs.Processor;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Azure.EventHubs;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Extensions.Logging;
 
-namespace AzureEventHubReceiver
+namespace EventHubTrigger
 {
-    class Program
+    public class Program 
     {
-            private const string EventHubConnectionString = "Endpoint=sb://notifyhubkk.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=3p4bQKGnzZAsDZXB+5/WAuGrmfuyLluRIQEnjgK8Zwc=";
-            private const string EventHubName = "myfirsteventhub";
-            private const string StorageContainerName = "myfirstblob";
-            private const string StorageAccountName = "mystoragekk";
-            private const string StorageAccountKey = "DefaultEndpointsProtocol=https;AccountName=mystoragekk;AccountKey=8bGD702FRby/3sT561OnFhz7xV03yRxedOw/Lwf4NCNA4mOfLaD585FLivRYEvpbKQIl+goAw7gt7Js12OlbNA==;EndpointSuffix=core.windows.net";
+        [FunctionName("EventHubHelloWorld")]
+        public static async Task Run([EventHubTrigger("myfirsteventhub", Connection = "AzureEventHubConnectionString", ConsumerGroup = "$Default")] EventData[] events, ILogger log)
+        {
+            var exceptions = new List<Exception>();
 
-        //    private static readonly string StorageConnectionString = string.Format("DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1}", StorageAccountName, StorageAccountKey);
-
-            public static void Main(string[] args)
+            foreach (EventData eventData in events)
             {
-                MainAsync(args).GetAwaiter().GetResult();
+                try
+                {
+                    string messageBody = Encoding.UTF8.GetString(eventData.Body.Array, eventData.Body.Offset, eventData.Body.Count);
+
+                    log.LogInformation($"C# Event Hub trigger function processed a message: {messageBody}");
+                    await Task.Yield();
+                }
+                catch (Exception e)
+                {
+                    exceptions.Add(e);
+                }
             }
+            if (exceptions.Count > 1)
+                throw new AggregateException(exceptions);
 
-            private static async Task MainAsync(string[] args)
-            {
-                Console.WriteLine("Registering EventProcessor...");
-
-                var eventProcessorHost = new EventProcessorHost(
-                    EventHubName,
-                    PartitionReceiver.DefaultConsumerGroupName,
-                    EventHubConnectionString,
-                    StorageAccountKey,
-                    StorageContainerName);
-
-                // Registers the Event Processor Host and starts receiving messages
-                await eventProcessorHost.RegisterEventProcessorAsync<SimpleEventProcessor>();
-
-                Console.WriteLine("Receiving. Press ENTER to stop worker.");
-                Console.ReadLine();
-
-                // Disposes of the Event Processor Host
-                await eventProcessorHost.UnregisterEventProcessorAsync();
-            }
+            if (exceptions.Count == 1)
+                throw exceptions.Single();
         }
+    }
 }
