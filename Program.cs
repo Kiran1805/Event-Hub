@@ -1,16 +1,19 @@
 ﻿using System;
+using Microsoft.Azure.EventHubs;
+using Microsoft.Azure.EventHubs.Processor;
+using System.Threading.Tasks;
 
-namespace AzureEventHubSender
+namespace AzureEventHubReceiver
 {
-        using System;
-        using System.Text;
-        using System.Threading.Tasks;
-        using Microsoft.Azure.EventHubs;
-        public class Program
-        {
-            private static EventHubClient eventHubClient;
+    class Program
+    {
             private const string EventHubConnectionString = "Endpoint=sb://notifyhubkk.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=3p4bQKGnzZAsDZXB+5/WAuGrmfuyLluRIQEnjgK8Zwc=";
             private const string EventHubName = "myfirsteventhub";
+            private const string StorageContainerName = "myfirstblob";
+            private const string StorageAccountName = "mystoragekk";
+            private const string StorageAccountKey = "DefaultEndpointsProtocol=https;AccountName=mystoragekk;AccountKey=8bGD702FRby/3sT561OnFhz7xV03yRxedOw/Lwf4NCNA4mOfLaD585FLivRYEvpbKQIl+goAw7gt7Js12OlbNA==;EndpointSuffix=core.windows.net";
+
+        //    private static readonly string StorageConnectionString = string.Format("DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1}", StorageAccountName, StorageAccountKey);
 
             public static void Main(string[] args)
             {
@@ -19,41 +22,23 @@ namespace AzureEventHubSender
 
             private static async Task MainAsync(string[] args)
             {
-                // Creates an EventHubsConnectionStringBuilder object from the connection string, and sets the EntityPath.
-                // Typically, the connection string should have the entity path in it, but for the sake of this simple scenario
-                // we are using the connection string from the namespace.
-                var connectionStringBuilder = new EventHubsConnectionStringBuilder(EventHubConnectionString)
-                {
-                    EntityPath = EventHubName
-                };
+                Console.WriteLine("Registering EventProcessor...");
 
-                eventHubClient = EventHubClient.CreateFromConnectionString(connectionStringBuilder.ToString());
+                var eventProcessorHost = new EventProcessorHost(
+                    EventHubName,
+                    PartitionReceiver.DefaultConsumerGroupName,
+                    EventHubConnectionString,
+                    StorageAccountKey,
+                    StorageContainerName);
 
-                await SendMessagesToEventHub();
+                // Registers the Event Processor Host and starts receiving messages
+                await eventProcessorHost.RegisterEventProcessorAsync<SimpleEventProcessor>();
 
-                await eventHubClient.CloseAsync();
-
-                Console.WriteLine("Press ENTER to exit.");
+                Console.WriteLine("Receiving. Press ENTER to stop worker.");
                 Console.ReadLine();
-            }
 
-            // Uses the event hub client to send 100 messages to the event hub.
-            private static async Task SendMessagesToEventHub()
-            {
-                    try
-                    {
-                        var message = $"{DateTime.Now} 1805199";
-                        Console.WriteLine($"Sending message: {message}");
-                        await eventHubClient.SendAsync(new EventData(Encoding.UTF8.GetBytes(message)));
-                    }
-                    catch (Exception exception)
-                    {
-                        Console.WriteLine($"{DateTime.Now} > Exception: {exception.Message}");
-                    }
-
-                    await Task.Delay(10);
-
-                Console.WriteLine($"message sent.");
+                // Disposes of the Event Processor Host
+                await eventProcessorHost.UnregisterEventProcessorAsync();
             }
         }
 }
